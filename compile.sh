@@ -3,50 +3,33 @@
 # Fail on errors
 set -e
 
-ASEPRITE_VERSION=v1.3.15.2
-SKIA_VERSION=aseprite-m124
+ASEPRITE_VERSION=v1.3.18.6
 
-echo "Download and compile Skia & other dependencies"
-cd /dependencies
+SKIA_DIR=/dependencies/skia-m124
+SKIA_LIBRARY_DIR="${SKIA_DIR}/out/Release-x64"
 
-if [ ! -d "/dependencies/depot_tools" ]
-then
-  echo "Cloning depot_tools"
-  git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
-  cd depot_tools
-  git checkout main
-  cd ..
+
+echo "Preparing precompiled Skia"
+
+if [ ! -f "${SKIA_LIBRARY_DIR}/libskia.a" ]; then
+    echo "Downloading precompiled Skia"
+
+    mkdir -p "${SKIA_DIR}"
+
+    curl -L --fail --retry 3 \
+        "https://github.com/aseprite/skia/releases/download/m124-08a5439a6b/Skia-Linux-Release-x64.zip" \
+        -o /tmp/skia.zip
+
+    echo "Extracting Skia"
+
+    unzip -q /tmp/skia.zip -d "${SKIA_DIR}"
+
+    rm /tmp/skia.zip
 else
-  cd depot_tools
-  echo "Checking out latest depot_tools"
-  git checkout main
-  git pull
-  cd ..
+    echo "Precompiled Skia already exists, skipping download"
 fi
 
-export PATH="${PWD}/depot_tools:${PATH}"
-gclient
-
-if [ ! -d "/dependencies/skia" ]
-then
-  echo "Cloning skia"
-  git clone -b "${SKIA_VERSION}" https://github.com/aseprite/skia.git
-else
-  echo "Updating to latest Skia version"
-  cd skia
-  git fetch
-  git checkout "${SKIA_VERSION}"
-  cd ..
-fi
-
-cd skia
-pwd
-echo "Syncing skia dependencies"
-python3 tools/git-sync-deps
-
-echo "Compiling skia"
-gn gen out/Release-x64 --args="is_debug=false is_official_build=true skia_use_system_expat=false skia_use_system_icu=false skia_use_system_libjpeg_turbo=false skia_use_system_libpng=false skia_use_system_libwebp=false skia_use_system_zlib=false skia_use_sfntly=false skia_use_freetype=true skia_use_harfbuzz=true skia_pdf_subset_harfbuzz=true skia_use_system_freetype2=false skia_use_system_harfbuzz=false"
-ninja -C out/Release-x64 skia modules
+echo "Preparing Aseprite"
 
 cd /output
 
@@ -59,22 +42,32 @@ else
   cd aseprite
   git fetch
   git switch "${ASEPRITE_VERSION}" --detach
-  cd ..
+  git submodule update --init --recursive
 fi
 
-cd aseprite
+cd /output/aseprite
+
 mkdir -p build
 cd build
 
 echo "Compiling Asperite"
+
+export CC=clang
+export CXX=clang++
+
 cmake \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+	-DCMAKE_CXX_FLAGS:STRING=-stdlib=libstdc++ \
+	-DCMAKE_EXE_LINKER_FLAGS:STRING=-stdlib=libstdc++ \
   -DLAF_BACKEND=skia \
-  -DSKIA_DIR=/dependencies/skia \
-  -DSKIA_LIBRARY_DIR=/dependencies/skia/out/Release-x64 \
-  -DSKIA_LIBRARY=/dependencies/skia/out/Release-x64/libskia.a \
+  -DSKIA_DIR="${SKIA_DIR}" \
+  -DSKIA_LIBRARY_DIR="${SKIA_LIBRARY_DIR}" \
+  -DSKIA_LIBRARY="${SKIA_LIBRARY_DIR}"/libskia.a \
   -G Ninja \
   ..
 
-echo "Linking Aseprite"
+echo "Compiling Aseprite"
 ninja aseprite
+
+echo "Build completed successfully!"
+echo "Executable: /output/aseprite/build/bin/aseprite"
