@@ -1,7 +1,7 @@
 # Docker Aseprite Builder
 
 
-**This repository is a fork of nilsve/docker-aseprite-linux, originally created by nilsve.**
+**This repository is a fork of docker-aseprite-linux, originally created by nilsve.**
 
 All credit for the original project goes to nilsve. My contribution is a modification to the original build process: instead of compiling Skia from source, this fork downloads and uses a precompiled Skia release. This significantly reduces build time and avoids the need to download and compile the large Skia source tree.
 
